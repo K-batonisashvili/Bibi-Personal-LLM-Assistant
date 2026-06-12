@@ -57,4 +57,4 @@ Note: Modern mobile browsers require a secure context to access the camera and m
 * Click "Initialize" on the web interface to grant camera and mic permissions.
 * Use the dropdown at the top to select your preferred camera lens.
 * Say the wake word followed by your question, or tap "Manual Listen" to bypass the wake word.
-* If Bibi is giving a long answer you want to cut off, tap "Stop Bibi".
+* If Bibi is giving a long answer you want to cut off, tap "Bibi stop".

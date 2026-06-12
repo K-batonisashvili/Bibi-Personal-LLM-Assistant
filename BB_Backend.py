@@ -1,3 +1,4 @@
+import re
 import os, threading, queue, time, base64, io, logging, wave, json, string
 import numpy as np
 import cv2
@@ -11,7 +12,7 @@ from kokoro_onnx import Kokoro
 # setup environment and config
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
-log = logging.getLogger("Bibi")
+log = logging.getLogger("BB")
 
 with open('secrets.json', 'r') as f:
     secrets = json.load(f)
@@ -25,15 +26,15 @@ TTS_VOICE       = secrets["ai_models"]["TTS_VOICE"]
 
 # hardcoded these 
 WHISPER_DEVICE  = "cpu"
-WAKE_WORD       = "Bibi wake up"
-STOP_WORDS      = ["Bibi stop", "go to sleep", "stop listening"]
+WAKE_WORD       = ["Hey BB", "Hey BeeBee", "Hey BB"]
+STOP_WORDS      = ["BB stop", "go to sleep", "stop listening"]
 KOKORO_MODEL    = "kokoro-v1.0.onnx"
 KOKORO_VOICES   = "voices-v1.0.bin"
 
 # global state tracking
-bibi_speaking   = False
-bibi_awake      = False
-bibi_thinking   = False
+BB_speaking   = False
+BB_awake      = False
+BB_thinking   = False
 state_lock      = threading.Lock()
 latest_frame    = None
 frame_lock      = threading.Lock()
@@ -63,7 +64,7 @@ except Exception as e:
 # handle websocket connections
 @sock.route('/ws')
 def ws_handler(ws):
-    global client_sample_rate, bibi_awake, bibi_speaking, bibi_thinking
+    global client_sample_rate, BB_awake, BB_speaking, BB_thinking
     with ws_lock:
         ws_clients.add(ws)
     try:
@@ -81,9 +82,9 @@ def ws_handler(ws):
                     
                     elif data.get("type") == "manual_wake":
                         with state_lock:
-                            bibi_awake = True
-                            bibi_speaking = False
-                            bibi_thinking = False
+                            BB_awake = True
+                            BB_speaking = False
+                            BB_thinking = False
                         while not audio_queue.empty():
                             try: audio_queue.get_nowait()
                             except: break
@@ -92,15 +93,15 @@ def ws_handler(ws):
                         
                     elif data.get("type") == "interrupt":
                         with state_lock:
-                            bibi_speaking = False
-                            bibi_thinking = False
-                            bibi_awake = False
+                            BB_speaking = False
+                            BB_thinking = False
+                            BB_awake = False
                         while not audio_queue.empty():
                             try: audio_queue.get_nowait()
                             except: break
                         push_overlay({"type": "status", "text": "AWAITING WAKE WORD"})
                         push_overlay({"type": "transcript", "text": "—"})
-                        log.info("🛑 User Interrupted bibi.")
+                        log.info("🛑 User Interrupted BB.")
                 except Exception:
                     pass
     except Exception:
@@ -131,25 +132,25 @@ def pcm_to_wav_bytes(pcm: np.ndarray, sample_rate: int = 16000) -> bytes:
 # automatically unmute mic after tts finishes
 def auto_unmute_mic(sleep_time):
     time.sleep(sleep_time)
-    global bibi_speaking
+    global BB_speaking
     with state_lock:
-        bibi_speaking = False
+        BB_speaking = False
     log.info("🔊 Mic Unmuted - Ready for Wake Word.")
     push_overlay({"type": "status", "text": "AWAITING WAKE WORD"})
     push_overlay({"type": "transcript", "text": "—"})
 
 # main ai logic for vision and text
-def activate_bibi_brain(query: str):
-    global bibi_thinking, latest_frame, bibi_speaking, bibi_awake
+def activate_BB_brain(query: str):
+    global BB_thinking, latest_frame, BB_speaking, BB_awake
     with state_lock:
-        if bibi_thinking: return
-        bibi_thinking = True
+        if BB_thinking: return
+        BB_thinking = True
 
     log.info(f"🧠 Processing: '{query}'")
     push_overlay({"type": "status", "text": "THINKING..."})
     
     try:
-        img_bytes = None
+        b64_img = None
         with frame_lock:
             if latest_frame is not None:
                 h, w = latest_frame.shape[:2]
@@ -161,24 +162,38 @@ def activate_bibi_brain(query: str):
                     ai_frame = latest_frame
                     
                 _, buf = cv2.imencode('.jpg', ai_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-                img_bytes = buf.tobytes()
+                
+                b64_img = base64.b64encode(buf.tobytes()).decode('utf-8')
 
-        images_list = [img_bytes] if img_bytes else []
-        prompt = f"You are Bibi, an advanced AI interface. Respond to the query: '{query}'"
+        images_list = [b64_img] if b64_img else []
+        prompt = f"You are BB, an advanced AI interface. Respond to the query: '{query}'"
 
-        resp = ollama.generate(
+        resp = ollama.chat(
             model=VLM_MODEL,
-            prompt=prompt,
-            images=images_list,
-            options={"num_predict": 100, "temperature": 0.2} 
+            messages=[
+                {
+                    'role': 'user',
+                    'content': prompt,
+                    'images': images_list
+                }
+            ],
+            options={
+                "num_predict": 200,  
+                "temperature": 0.7,   # Qwen doc recs
+            } 
         )
-        text = resp['response'].strip()
         
+        text = resp.message.content.strip()
+        log.info(f"RAW MODEL OUTPUT: {repr(text)}")
+        # ──────────────────────────────────────────────
+        
+        # Scrub out the internal monologue
+        text = re.sub(r'<tool_call>.*?</tool_call>', '', text, flags=re.DOTALL).strip()
         # fallback safety catch
         if not text:
             text = "I'm having trouble processing that right now."
             
-        log.info(f"🤖 Bibi: {text}")
+        log.info(f"🤖 BB: {text}")
         push_overlay({"type": "response", "text": text})
 
         if kokoro_tts:
@@ -188,29 +203,29 @@ def activate_bibi_brain(query: str):
             
             audio_duration_seconds = len(samples) / sr
             with state_lock:
-                bibi_speaking = True
+                BB_speaking = True
                 
             push_overlay({"type": "tts_audio", "data": b64_audio})
             threading.Thread(target=auto_unmute_mic, args=(audio_duration_seconds + 0.5,), daemon=True).start()
 
     except Exception as e:
-        log.error(f"Pipeline error: {e}")
+        log.exception("Brain execution failed with the following error:")
     finally:
         with state_lock:
-            bibi_thinking = False
-            bibi_awake = False
+            BB_thinking = False
+            BB_awake = False
         log.info("💤 Returned to standby.")
 
 # process streaming audio and handle vad/wake words
 def audio_processor_loop():
-    global client_sample_rate, bibi_awake
+    global client_sample_rate, BB_awake
     local_accumulator = np.array([], dtype=np.float32)
     active_phrase_chunks = []
     is_speaking = False
     silence_ms  = 0
     CHUNK_SAMPLES = 6400 
     
-    log.info("🚀 bibi Streaming Core Online.")
+    log.info("🚀 BB Streaming Core Online.")
     
     while True:
         raw_bytes = audio_queue.get()
@@ -227,7 +242,7 @@ def audio_processor_loop():
             eval_window = local_accumulator[:CHUNK_SAMPLES]
             local_accumulator = local_accumulator[CHUNK_SAMPLES:]
             
-            if bibi_thinking or bibi_speaking:
+            if BB_thinking or BB_speaking:
                 active_phrase_chunks = []
                 is_speaking = False
                 silence_ms = 0
@@ -249,26 +264,28 @@ def audio_processor_loop():
                         
                         if final_text:
                             if any(w in final_text.lower() for w in STOP_WORDS):
-                                bibi_awake = False
+                                BB_awake = False
                                 log.info("💤 Sleeping.")
                                 push_overlay({"type": "status", "text": "AWAITING WAKE WORD"})
                                 push_overlay({"type": "transcript", "text": "—"})
                                 
-                            elif WAKE_WORD.lower() in final_text.lower():
-                                bibi_awake = True
+                            elif any(w.lower() in final_text.lower() for w in WAKE_WORD):
+                                BB_awake = True
                                 push_overlay({"type": "status", "text": "LISTENING..."})
-                                cmd = final_text.lower().split(WAKE_WORD.lower())[-1].strip()
-                                clean_cmd = cmd.translate(str.maketrans('', '', string.punctuation)).strip()
+                                lower_text = final_text.lower()
+                                triggered_word = next(w.lower() for w in WAKE_WORD if w.lower() in lower_text)
                                 
+                                cmd = lower_text.split(triggered_word)[-1].strip()
+                                clean_cmd = cmd.translate(str.maketrans('', '', string.punctuation)).strip()
                                 if clean_cmd: 
                                     push_overlay({"type": "transcript", "text": cmd})
-                                    threading.Thread(target=activate_bibi_brain, args=(cmd,), daemon=True).start()
+                                    threading.Thread(target=activate_BB_brain, args=(cmd,), daemon=True).start()
                                 else:
                                     log.info("Awake and waiting for command...")
                                     
-                            elif bibi_awake:
+                            elif BB_awake:
                                 push_overlay({"type": "transcript", "text": final_text})
-                                threading.Thread(target=activate_bibi_brain, args=(final_text,), daemon=True).start()
+                                threading.Thread(target=activate_BB_brain, args=(final_text,), daemon=True).start()
                         
                         is_speaking = False
                         silence_ms = 0
@@ -289,7 +306,7 @@ def audio_processor_loop():
                 f_segments, _ = whisper.transcribe(io.BytesIO(pcm_to_wav_bytes(full_phrase, 16000)), language="en", vad_filter=True)
                 interim_text = " ".join(s.text for s in f_segments).strip()
                 
-                if bibi_awake:
+                if BB_awake:
                     push_overlay({"type": "transcript", "text": interim_text})
             else:
                 if is_speaking:
@@ -299,7 +316,7 @@ def audio_processor_loop():
 # serve frontend
 @app.route('/')
 def index():
-    return send_from_directory('.', 'hud.html')
+    return send_from_directory('.', 'HUD_Frontend.html')
 
 # process incoming camera frames
 @app.route('/frame', methods=['POST'])

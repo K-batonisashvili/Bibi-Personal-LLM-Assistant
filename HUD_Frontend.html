@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Bibi HUD</title>
+<title>BB HUD</title>
 <style>
   /* ui styling */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -47,7 +47,7 @@
 
 <div id="hud-container">
   <div id="topbar">
-    <div id="status-text">bibi</div>
+    <div id="status-text">BB</div>
     <select id="camera-select" onchange="switchCamera()"><option value="">Waiting for init...</option></select>
     <div id="conn-dot"></div>
   </div>
@@ -62,7 +62,7 @@
   <div id="bottom">
     <button class="btn" id="btn-listen" onclick="toggleListen()">Initialize</button>
     <button class="btn" id="btn-manual" onclick="manualWake()" style="display: none;">Manual Listen</button>
-    <button class="btn" id="btn-interrupt" onclick="interruptbibi()" style="display: none; border-color: var(--red); color: var(--red);">Stop Bibi</button>
+    <button class="btn" id="btn-interrupt" onclick="interruptBB()" style="display: none; border-color: var(--red); color: var(--red);">Stop BB</button>
   </div>
 </div>
 
@@ -108,10 +108,10 @@ function connectWS() {
       document.getElementById('transcript-text').textContent = msg.text;
     } 
     else if (msg.type === 'status') {
-      document.getElementById('status-text').textContent = `bibi · ${msg.text}`;
+      document.getElementById('status-text').textContent = `BB · ${msg.text}`;
     }
     else if (msg.type === 'response') {
-      logPhone(`🤖 Bibi: ${msg.text}`);
+      logPhone(`🤖 BB: ${msg.text}`);
     } 
     else if (msg.type === 'tts_audio') {
       const binaryStr = window.atob(msg.data);
@@ -194,7 +194,7 @@ async function startBinaryStreaming(stream) {
 }
 
 // stop tts and reset
-function interruptbibi() {
+function interruptBB() {
   if (currentAudio) {
     currentAudio.pause();
     currentAudio.currentTime = 0;
