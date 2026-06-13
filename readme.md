@@ -1,4 +1,4 @@
-# Bibi AI Assistant
+# BB AI Assistant
 
 This is a fully local, real-time voice and vision assistant. It streams raw audio and camera frames from a phone or desktop browser directly to a Python backend over WebSockets. Once it hears the wake word (or manually clicking/tapping the listen button), it uses local machine learning models to transcribe your voice, look at your camera feed, and speak an answer back to you.
 
@@ -6,8 +6,8 @@ Everything runs locally. No cloud APIs, no subscriptions, no data tracking, no c
 
 ### How it works
 
-* **Frontend (hud.html):** A lightweight web interface that accesses your camera and microphone. It streams highly compressed audio bytes over a WebSocket and features a hardware lens selector to ensure you get the best camera quality.
-* **Backend (Bibi server.py):** A Flask server that catches the incoming audio and video streams. 
+* **Frontend (HUD_Frontend.html):** A lightweight web interface that accesses your camera and microphone. It streams highly compressed audio bytes over a WebSocket and features a hardware lens selector to ensure you get the best camera quality.
+* **Backend (BB_Backend.py):** A Flask server that catches the incoming audio and video streams. 
 * **Speech-to-Text:** Uses faster-whisper to constantly monitor the audio stream for silence and the wake word.
 * **The Brain:** Uses Ollama (running a vision-language model) to understand prompts and analyze a captured camera frame.
 * **Text-to-Speech:** Uses Kokoro-ONNX to generate a voice response and streams the audio back to the initializing device.
@@ -45,7 +45,7 @@ Add this exact structure to your `secrets.json` and fill in your details:
 ### Running the server
 
 1. Run the backend script:
-`python "Bibi server.py"`
+`python "BB server.py"`
 
 2. Open your browser and navigate to the server IP (or your Tailscale IP) over port 1234.
 Example: `https://YOUR_IP_ADDRESS:1234`
@@ -57,4 +57,4 @@ Note: Modern mobile browsers require a secure context to access the camera and m
 * Click "Initialize" on the web interface to grant camera and mic permissions.
 * Use the dropdown at the top to select your preferred camera lens.
 * Say the wake word followed by your question, or tap "Manual Listen" to bypass the wake word.
-* If Bibi is giving a long answer you want to cut off, tap "Bibi stop".
+* If BB is giving a long answer you want to cut off, tap "BB stop".

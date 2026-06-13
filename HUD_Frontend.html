@@ -289,14 +289,12 @@ async function switchCamera() {
 }
 
 async function resetPipeline() {
-  logPhone("🛑 Sending core reset signal to server...");
+  logPhone("Sending core reset signal to server...");
   try {
-    const serverIp = document.getElementById('server-ip').value || window.location.hostname;
-    await fetch(`${SERVER}/reset`, { method: 'POST' });    
-    // Clear UI components locally immediately
+    await fetch(`${SERVER}/reset`, { method: 'POST' });
     document.getElementById('vision-preview').style.display = 'none';
     document.getElementById('vision-preview').src = "";
-    logPhone("Pipeline flushed and reset. Awaiting wake word.");
+    logPhone("Pipeline flushed. Awaiting wake word.");
   } catch (err) {
     logPhone(`Reset failure: ${err.message}`, true);
   }
