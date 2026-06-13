@@ -169,9 +169,15 @@ def activate_BB_brain(query: str):
         images_list = [img_bytes] if img_bytes else []
         has_image = bool(img_bytes)
         log.info(f"📸 Vision: {'frame attached ({} bytes)'.format(len(img_bytes)) if has_image else 'no frame — text only'}")
+        
+        if has_image:
+            b64_preview = base64.b64encode(img_bytes).decode('utf-8')
+            push_overlay({"type": "vision_preview", "data": b64_preview})
+
         prompt = (
             f"You are BB, a concise voice AI assistant. "
-            f"Make a definitive guess immediately. Do not debate internally or second-guess yourself. "
+            f"If the query is about an image, answer it. If the query is not about an image, respond normally. "
+            f"Do not debate internally or second-guess yourself. "
             f"Answer in 1-3 spoken sentences only. No bullet points or analysis. "
             f"Query: '{query}'"
         )
@@ -380,6 +386,28 @@ def receive_frame():
         if img is not None:
             with frame_lock: latest_frame = img
     return '', 204
+
+@app.route('/reset', methods=['POST'])
+def reset_pipeline():
+    global BB_awake, BB_thinking, BB_speaking
+    log.info("Reset triggered. Purging audio buffers and forcing sleep state...")
+    
+    # break processing loops
+    BB_thinking = False
+    BB_speaking = False
+    BB_awake = False
+    
+    # flush audio queue 
+    while not audio_queue.empty():
+        try:
+            audio_queue.get_nowait()
+        except:
+            break
+            
+    push_overlay({"type": "status", "text": "AWAITING WAKE WORD"})
+    push_overlay({"type": "transcript", "text": "—"})
+    
+    return jsonify({"status": "pipeline_cleared"})
 
 # start the server
 if __name__ == '__main__':

@@ -33,7 +33,18 @@
   #level-fill { height: 100%; width: 0%; background: var(--green); transition: width 0.08s linear; }
   #main { flex: 1; overflow-y: auto; padding: 12px 18px; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; }
   #transcript-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 12px; }
-  
+
+  #vision-preview { 
+    display: none; 
+    width: 110px; 
+    border: 2px solid var(--red); 
+    border-radius: 8px; 
+    box-shadow: 0 4px 10px rgba(0,0,0,0.6); 
+    align-self: flex-end; 
+    margin-bottom: 5px; 
+    object-fit: cover;
+  }
+
   #debug-monitor { background: rgba(20, 0, 0, 0.6); border: 1px solid var(--red); border-radius: 6px; padding: 8px 12px; font-size: 10px; color: #ffaa00; max-height: 80px; overflow-y: auto; margin-top: 10px; }
   #bottom { padding: 12px 18px 20px; border-top: 1px solid var(--border); display: flex; gap: 10px; background: rgba(0,0,0,0.6); }
   .btn { flex: 1; padding: 12px 0; border: 1px solid var(--border); background: rgba(0,0,0,0.4); color: var(--dim); font-family: var(--font); font-size: 11px; border-radius: 6px; cursor: pointer; }
@@ -55,6 +66,7 @@
   <div id="level-wrap"><div id="level-bar"><div id="level-fill"></div></div></div>
 
   <div id="main">
+    <img id="vision-preview" src="" alt="BB Vision" />
     <div id="transcript-card"><span id="transcript-text">—</span></div>
     <div id="debug-monitor">⚙️ System Console Init... Waiting for click.</div>
   </div>
@@ -63,6 +75,7 @@
     <button class="btn" id="btn-listen" onclick="toggleListen()">Initialize</button>
     <button class="btn" id="btn-manual" onclick="manualWake()" style="display: none;">Manual Listen</button>
     <button class="btn" id="btn-interrupt" onclick="interruptBB()" style="display: none; border-color: var(--red); color: var(--red);">Stop BB</button>
+    <button class="btn" id="btn-reset" onclick="resetPipeline()" style="display:none; color: var(--red); border-color: var(--red);">Refresh</button>
   </div>
 </div>
 
@@ -113,6 +126,11 @@ function connectWS() {
     else if (msg.type === 'response') {
       logPhone(`🤖 BB: ${msg.text}`);
     } 
+    else if (msg.type === 'vision_preview') {
+      const previewEl = document.getElementById('vision-preview');
+      previewEl.src = "data:image/jpeg;base64," + msg.data;
+      previewEl.style.display = 'block';
+    }
     else if (msg.type === 'tts_audio') {
       const binaryStr = window.atob(msg.data);
       const len = binaryStr.length;
@@ -126,10 +144,12 @@ function connectWS() {
       currentAudio = new Audio(url);
       document.getElementById('btn-interrupt').style.display = 'block';
       document.getElementById('btn-manual').style.display = 'none';
+      document.getElementById('btn-reset').style.display = 'none';
       
       currentAudio.onended = () => {
          document.getElementById('btn-interrupt').style.display = 'none';
          document.getElementById('btn-manual').style.display = 'block';
+         document.getElementById('btn-reset').style.display = 'block';
       };
       
       currentAudio.play();
@@ -212,6 +232,7 @@ function interruptBB() {
 function manualWake() {
   if (wsConn && wsConn.readyState === WebSocket.OPEN) {
     wsConn.send(JSON.stringify({ type: 'manual_wake' }));
+    document.getElementById('vision-preview').style.display = 'none';
   }
 }
 
@@ -267,6 +288,20 @@ async function switchCamera() {
   }
 }
 
+async function resetPipeline() {
+  logPhone("🛑 Sending core reset signal to server...");
+  try {
+    const serverIp = document.getElementById('server-ip').value || window.location.hostname;
+    await fetch(`${SERVER}/reset`, { method: 'POST' });    
+    // Clear UI components locally immediately
+    document.getElementById('vision-preview').style.display = 'none';
+    document.getElementById('vision-preview').src = "";
+    logPhone("Pipeline flushed and reset. Awaiting wake word.");
+  } catch (err) {
+    logPhone(`Reset failure: ${err.message}`, true);
+  }
+}
+
 // start camera, mic, and websockets
 async function toggleListen() {
   const btn = document.getElementById('btn-listen');
@@ -278,6 +313,8 @@ async function toggleListen() {
     if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
     videoEl.srcObject = null; btn.textContent = 'Initialize'; btn.classList.remove('active');
     document.getElementById('btn-manual').style.display = 'none';
+    document.getElementById('vision-preview').style.display = 'none';
+    document.getElementById('btn-reset').style.display = 'none';
     return;
   }
 
@@ -296,6 +333,7 @@ async function toggleListen() {
     btn.textContent = 'Running'; 
     btn.classList.add('active');
     document.getElementById('btn-manual').style.display = 'block';
+    document.getElementById('btn-reset').style.display = 'block';
     
     await populateCameraDropdown();
 
