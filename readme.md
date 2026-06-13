@@ -20,7 +20,7 @@
 * **The Brain:** Uses Ollama (running a vision-language model) to understand prompts and analyze a captured camera frame.
 * **Text-to-Speech:** Uses Kokoro-ONNX to generate a voice response and streams the audio back to the initializing device.
 
-![Backend Console Output](imgs\console_logs.png)
+![Backend Console Output](imgs/console_logs.png)
 *Real-time server logging showing transcription, multimodal vision attachment, and inference. Specifically during the wreath demo recording.*
 
 ### Prerequisites
